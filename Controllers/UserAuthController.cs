@@ -116,7 +116,7 @@ namespace TodoApp.Controllers
 
             var token = new JwtSecurityToken(
                 claims: Claims,
-                expires: DateTime.Now.AddMinutes(_JwtExpiry),
+                expires: DateTime.UtcNow.AddMinutes(_JwtExpiry),
                 signingCredentials: creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
