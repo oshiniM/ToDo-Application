@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TodoApp.Data;
-using TodoApp.Models;
+using TodoApp.Dtos;
+using TodoApp.Entities;
+using TodoApp.Services;
 
 namespace TodoApp.Controllers
 {
@@ -9,23 +11,24 @@ namespace TodoApp.Controllers
     [ApiController]
     public class TaskController : ControllerBase
     {
-        private readonly ApplicationDbContext context;
-        public TaskController(ApplicationDbContext context)
+        private readonly ITaskService _taskService;
+
+        public TaskController(ITaskService taskService)
         {
-            this.context = context;
+            _taskService = taskService;
         }
 
         [HttpGet]
-        public IActionResult GetTask()
+        public IActionResult GetTasks()
         {
-            var tasks = context.Tasks.OrderByDescending(t => t.Id).ToList();
+            var tasks = _taskService.GetTasks();
             return Ok(tasks);
         }
 
         [HttpGet("{id}")]
         public IActionResult GetTask(int id)
         {
-            var task = context.Tasks.Find(id);
+            var task = _taskService.GetTaskById(id);
             if (task == null)
             {
                 return NotFound();
@@ -34,57 +37,32 @@ namespace TodoApp.Controllers
         }
 
         [HttpPost]
-        public IActionResult CreateTask(TaskDto taskDto)
+        public IActionResult CreateTask([FromBody] TaskDto taskDto)
         {
-            var task = new TaskItem
-            {
-                Title = taskDto.Title,
-                Description = taskDto.Description,
-                IsCompleted = taskDto.IsCompleted,
-                CreatedAt = DateTime.Now
-            };
-
-            context.Tasks.Add(task);
-            context.SaveChanges();
-
-            return Ok("Task Created Successfully");
+            var result = _taskService.CreateTask(taskDto);
+            return Ok(result);
         }
 
         [HttpPut("{id}")]
-        public IActionResult EditTask(int id, TaskDto taskDto)
+        public IActionResult EditTask(int id, [FromBody] TaskDto taskDto)
         {
-            var task = context.Tasks.Find(id);
-            if (task == null)  
+            var result = _taskService.EditTask(id, taskDto);
+            if (result.Contains("not found"))
             {
-                return NotFound();
+                return NotFound(result);
             }
-
-            task.Title = taskDto.Title;
-            task.Description = taskDto.Description;
-            task.IsCompleted = taskDto.IsCompleted;
-            task.CreatedAt = DateTime.Now;
-
-            context.Tasks.Update(task);
-            context.SaveChanges();
-
-            return Ok("Task Updated Successfully");
+            return Ok(result);
         }
 
         [HttpDelete("{id}")]
         public IActionResult DeleteTask(int id)
         {
-            var task = context.Tasks.Find(id);
-            if (task == null)
+            var result = _taskService.DeleteTask(id);
+            if (result.Contains("not found"))
             {
-                return NotFound();
+                return NotFound(result);
             }
-
-            context.Tasks.Remove(task);
-            context.SaveChanges();
-
-            return Ok("Task Deleted Successfully");
+            return Ok(result);
         }
-
-
     }
 }

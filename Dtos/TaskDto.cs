@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace TodoApp.Models
+namespace TodoApp.Dtos
 {
     public class TaskDto
     {

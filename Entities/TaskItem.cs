@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.Eventing.Reader;
 using System.Reflection;
 
-namespace TodoApp.Models
+namespace TodoApp.Entities
 {
     public class TaskItem
     {

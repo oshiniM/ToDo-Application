@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TodoApp.Data;
+using TodoApp.Services;
+using TodoApp.Utilities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,45 +13,62 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+builder.Services.AddScoped<IUserAuthService, UserAuthService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
 
+// Configure Database
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Configure Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     options.Password.RequireDigit = false;
     options.Password.RequireLowercase = false;
     options.Password.RequireUppercase = false;
     options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 1; 
-    options.Password.RequiredUniqueChars = 0; 
+    options.Password.RequiredLength = 6; 
 })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-//Jwt Configuration
+builder.Services.AddScoped<JwtTokenGenerator>(serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var jwtKey = configuration["Jwt:Key"] ?? throw new ArgumentNullException("Jwt:Key is missing");
+    var jwtIssuer = configuration["Jwt:Issuer"] ?? throw new ArgumentNullException("Jwt:Issuer is missing");
+    var jwtAudience = configuration["Jwt:Audience"] ?? throw new ArgumentNullException("Jwt:Audience is missing");
+    var jwtExpiry = int.TryParse(configuration["Jwt:ExpiryMinutes"], out int expiry) ? expiry : 60;
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
-{
-#pragma warning disable CS8604 // Possible null reference argument.
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.
-        GetBytes(builder.Configuration["Jwt:Key"]))
-    };
-#pragma warning restore CS8604 // Possible null reference argument.
+    return new JwtTokenGenerator(jwtKey, jwtIssuer, jwtAudience, jwtExpiry);
 });
+
+
+// JWT Authentication Configuration
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new ArgumentNullException("Jwt:Key is missing in appsettings.json");
+
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+    ?? throw new ArgumentNullException("Jwt:Issuer is missing in appsettings.json");
+
+var jwtAudience = builder.Configuration["Jwt:Audience"]
+    ?? throw new ArgumentNullException("Jwt:Audience is missing in appsettings.json");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true, 
+            ValidateAudience = true, 
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
 
 var app = builder.Build();
 
@@ -60,7 +79,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAuthentication(); 
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
